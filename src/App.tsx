@@ -16,12 +16,35 @@ interface RepoHistory {
   remote_branches: string[];
 }
 
+interface FileDiff {
+  path: string;
+  status: string;
+}
+
+interface CommitDetails {
+  hash: string;
+  message: string;
+  author: string;
+  timestamp: number;
+  files: FileDiff[];
+}
+
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [repos, setRepos] = useState<RepoInfo[]>([]);
-  const [selectedRepo, setSelectedRepo] = useState<RepoInfo | null>(null);
-  const [history, setHistory] = useState<RepoHistory | null>(null);
+  
+  // Tab System State
+  const [tabs, setTabs] = useState<RepoInfo[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const [histories, setHistories] = useState<Record<string, RepoHistory>>({});
+  
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedCommitHash, setSelectedCommitHash] = useState<string | null>(null);
+  const [commitDetails, setCommitDetails] = useState<CommitDetails | null>(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+
+  const activeRepo = tabs.find(t => t.path === activeTabId) || null;
+  const history = activeTabId ? histories[activeTabId] : null;
 
   const scanFolder = async () => {
     try {
@@ -35,16 +58,57 @@ function App() {
   };
 
   const loadRepo = async (repo: RepoInfo) => {
-    setSelectedRepo(repo);
-    setIsLoading(true);
+    let newTabs = [...tabs];
+    
+    const existingTabIndex = newTabs.findIndex(t => t.path === repo.path);
+    if (existingTabIndex >= 0) {
+      // Already open, just focus
+      setActiveTabId(repo.path);
+    } else {
+      newTabs.push(repo);
+      setTabs(newTabs);
+      setActiveTabId(repo.path);
+    }
+
+    // Clear commit selection when switching
+    setSelectedCommitHash(null);
+    setCommitDetails(null);
+
+    // Fetch history if not cached
+    if (!histories[repo.path]) {
+      setIsLoading(true);
+      try {
+        const hist = await invoke<RepoHistory>('get_repo_history', { path: repo.path });
+        setHistories(prev => ({ ...prev, [repo.path]: hist }));
+      } catch (e) {
+        console.error(e);
+        alert('Error loading history: ' + e);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const closeTab = (e: React.MouseEvent, path: string) => {
+    e.stopPropagation();
+    const newTabs = tabs.filter(t => t.path !== path);
+    setTabs(newTabs);
+    if (activeTabId === path) {
+      setActiveTabId(newTabs.length > 0 ? newTabs[newTabs.length - 1].path : null);
+    }
+  };
+
+  const handleCommitClick = async (hash: string) => {
+    if (!activeRepo) return;
+    setSelectedCommitHash(hash);
+    setIsLoadingDetails(true);
     try {
-      const hist = await invoke<RepoHistory>('get_repo_history', { path: repo.path });
-      setHistory(hist);
+      const details = await invoke<CommitDetails>('get_commit_details', { path: activeRepo.path, hash });
+      setCommitDetails(details);
     } catch (e) {
       console.error(e);
-      alert('Error loading history: ' + e);
     } finally {
-      setIsLoading(false);
+      setIsLoadingDetails(false);
     }
   };
 
@@ -93,9 +157,9 @@ function App() {
                     <button 
                       key={repo.path}
                       onClick={() => loadRepo(repo)}
-                      className={`flex items-center w-full px-2 py-1 text-sm hover:bg-muted rounded-md text-left ${selectedRepo?.path === repo.path ? 'bg-muted/50' : ''}`}
+                      className={`flex items-center w-full px-2 py-1 text-sm hover:bg-muted rounded-md text-left ${activeTabId === repo.path ? 'bg-muted/50' : ''}`}
                     >
-                      <GitBranch className={`w-4 h-4 mr-2 ${selectedRepo?.path === repo.path ? 'text-green-500' : 'text-gray-500'}`} />
+                      <GitBranch className={`w-4 h-4 mr-2 ${activeTabId === repo.path ? 'text-green-500' : 'text-gray-500'}`} />
                       <span className="flex-1 truncate">{repo.name}</span>
                     </button>
                   ))}
@@ -116,17 +180,32 @@ function App() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col bg-background relative">
         {/* Top Header / Tabs */}
-        <div className="h-10 flex border-b border-border bg-muted/10 items-end px-2 pt-1 relative">
-          <div className="absolute top-2 right-4 text-xs font-semibold text-muted-foreground/50 pointer-events-none">
+        <div className="h-10 flex border-b border-border bg-muted/10 items-end px-2 pt-1 relative overflow-x-auto overflow-y-hidden no-scrollbar">
+          <div className="absolute top-2 right-4 text-xs font-semibold text-muted-foreground/50 pointer-events-none z-10">
             PNS Repo Smart © 2026
           </div>
-          {selectedRepo && (
-            <div className="flex items-center px-4 py-1.5 bg-background border border-b-0 border-border rounded-t-md text-sm cursor-default min-w-[150px]">
-              <GitBranch className="w-4 h-4 mr-2 text-green-500" />
-              <span className="truncate">{selectedRepo.name}</span>
-              <button className="ml-auto opacity-50 hover:opacity-100 px-1" onClick={() => setSelectedRepo(null)}>×</button>
-            </div>
-          )}
+          <div className="flex space-x-1">
+            {tabs.map((tab) => (
+              <div 
+                key={tab.path}
+                onClick={() => setActiveTabId(tab.path)}
+                className={`flex items-center px-4 py-1.5 border border-b-0 rounded-t-md text-sm cursor-pointer min-w-[140px] max-w-[200px] transition-colors ${
+                  activeTabId === tab.path 
+                    ? 'bg-background border-border text-foreground' 
+                    : 'bg-muted/30 border-transparent text-muted-foreground hover:bg-muted/50'
+                }`}
+              >
+                <GitBranch className={`w-4 h-4 mr-2 shrink-0 ${activeTabId === tab.path ? 'text-green-500' : 'opacity-70'}`} />
+                <span className="truncate flex-1">{tab.name}</span>
+                <button 
+                  className="ml-2 opacity-50 hover:opacity-100 px-1 rounded hover:bg-muted shrink-0" 
+                  onClick={(e) => closeTab(e, tab.path)}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Toolbar */}
@@ -141,9 +220,9 @@ function App() {
             </button>
             <div className="h-4 w-px bg-border mx-2"></div>
             <div className="flex space-x-1">
-              <button className="px-3 py-1.5 text-sm hover:bg-muted rounded-md text-muted-foreground font-medium disabled:opacity-50" disabled={!selectedRepo}>Pull</button>
-              <button className="px-3 py-1.5 text-sm hover:bg-muted rounded-md text-muted-foreground font-medium disabled:opacity-50" disabled={!selectedRepo}>Push</button>
-              <button className="px-3 py-1.5 text-sm hover:bg-muted rounded-md text-muted-foreground font-medium disabled:opacity-50" disabled={!selectedRepo}>Branch</button>
+              <button className="px-3 py-1.5 text-sm hover:bg-muted rounded-md text-muted-foreground font-medium disabled:opacity-50" disabled={!activeRepo}>Pull</button>
+              <button className="px-3 py-1.5 text-sm hover:bg-muted rounded-md text-muted-foreground font-medium disabled:opacity-50" disabled={!activeRepo}>Push</button>
+              <button className="px-3 py-1.5 text-sm hover:bg-muted rounded-md text-muted-foreground font-medium disabled:opacity-50" disabled={!activeRepo}>Branch</button>
             </div>
           </div>
           <div className="relative">
@@ -191,34 +270,77 @@ function App() {
           </div>
 
           {/* Graph & Commit list */}
-          <div className="flex-1 flex flex-col relative">
-            {isLoading && (
-              <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 flex flex-col relative">
+              {isLoading && (
+                <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-50">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+              )}
+              
+              {/* Table Header */}
+              <div className="grid grid-cols-[auto_1fr_150px_150px] gap-4 px-4 py-2 border-b border-border bg-muted/20 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <div className="w-20 text-center">Graph</div>
+                <div>Message</div>
+                <div>Author</div>
+                <div>Date</div>
+              </div>
+              {/* Scrollable list (Placeholder for React Flow graph) */}
+              <div className="flex-1 overflow-hidden bg-background">
+                 {history && history.commits.length > 0 ? (
+                   <GitGraph commits={history.commits} onCommitClick={handleCommitClick} />
+                 ) : (
+                   <div className="h-full flex items-center justify-center text-center space-y-4 p-4">
+                     <TerminalSquare className="w-12 h-12 text-muted-foreground mx-auto opacity-20" />
+                     <h2 className="text-lg font-medium text-muted-foreground">No Repository Selected</h2>
+                     <p className="text-sm text-muted-foreground max-w-sm">
+                       Select a repository from the sidebar to view its commit history.
+                     </p>
+                   </div>
+                 )}
+              </div>
+            </div>
+
+            {/* Right Panel for Commit Details */}
+            {selectedCommitHash && (
+              <div className="w-[350px] border-l border-border bg-card flex flex-col shadow-[-4px_0_15px_rgba(0,0,0,0.1)] z-10">
+                <div className="p-4 border-b border-border bg-muted/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs font-bold font-mono px-2 py-0.5 bg-primary/10 text-primary rounded">{selectedCommitHash.substring(0, 7)}</div>
+                    <button className="text-muted-foreground hover:text-foreground p-1" onClick={() => setSelectedCommitHash(null)}>✕</button>
+                  </div>
+                  <div className="text-sm font-semibold text-foreground break-words">{commitDetails?.message || 'Loading...'}</div>
+                  {commitDetails && (
+                    <div className="text-xs text-muted-foreground mt-3 flex items-center">
+                      <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center mr-2 font-bold">{commitDetails.author.charAt(0)}</span>
+                      <div>
+                        <div className="font-medium text-foreground">{commitDetails.author}</div>
+                        <div>{new Date(commitDetails.timestamp * 1000).toLocaleString()}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 overflow-y-auto p-2">
+                  {isLoadingDetails ? (
+                     <div className="flex items-center justify-center h-full">
+                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                     </div>
+                  ) : (
+                     <div className="space-y-1 text-sm">
+                       <div className="text-xs font-semibold text-muted-foreground uppercase px-2 mb-2 pt-2 border-b border-border pb-2">
+                         {commitDetails?.files.length || 0} files changed
+                       </div>
+                       {commitDetails?.files.map((file, i) => (
+                         <div key={i} className="flex items-center px-2 py-1.5 hover:bg-muted rounded-md cursor-pointer group">
+                           <div className={`w-1.5 h-4 rounded-full mr-3 shrink-0 ${file.status === 'Added' ? 'bg-green-500' : file.status === 'Deleted' ? 'bg-red-500' : file.status === 'Renamed' ? 'bg-orange-500' : 'bg-blue-500'}`}></div>
+                           <span className="truncate flex-1 text-foreground/80 group-hover:text-foreground text-xs font-mono">{file.path}</span>
+                         </div>
+                       ))}
+                     </div>
+                  )}
+                </div>
               </div>
             )}
-            
-            {/* Table Header */}
-            <div className="grid grid-cols-[auto_1fr_150px_150px] gap-4 px-4 py-2 border-b border-border bg-muted/20 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              <div className="w-20 text-center">Graph</div>
-              <div>Message</div>
-              <div>Author</div>
-              <div>Date</div>
-            </div>
-            {/* Scrollable list (Placeholder for React Flow graph) */}
-            <div className="flex-1 overflow-hidden bg-background">
-               {history && history.commits.length > 0 ? (
-                 <GitGraph commits={history.commits} />
-               ) : (
-                 <div className="h-full flex items-center justify-center text-center space-y-4 p-4">
-                   <TerminalSquare className="w-12 h-12 text-muted-foreground mx-auto opacity-20" />
-                   <h2 className="text-lg font-medium text-muted-foreground">No Repository Selected</h2>
-                   <p className="text-sm text-muted-foreground max-w-sm">
-                     Select a repository from the sidebar to view its commit history.
-                   </p>
-                 </div>
-               )}
-            </div>
           </div>
         </div>
 

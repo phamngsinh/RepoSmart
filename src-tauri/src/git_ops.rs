@@ -26,6 +26,21 @@ pub struct RepoHistory {
     pub remote_branches: Vec<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FileDiff {
+    pub path: String,
+    pub status: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CommitDetails {
+    pub hash: String,
+    pub message: String,
+    pub author: String,
+    pub timestamp: i64,
+    pub files: Vec<FileDiff>,
+}
+
 #[tauri::command]
 pub fn scan_repositories(path: String) -> Result<Vec<RepoInfo>, String> {
     let mut repos = Vec::new();
@@ -134,5 +149,56 @@ pub fn get_repo_history(path: String) -> Result<RepoHistory, String> {
         commits,
         local_branches,
         remote_branches,
+    })
+}
+
+#[tauri::command]
+pub fn get_commit_details(path: String, hash: String) -> Result<CommitDetails, String> {
+    let repo = Repository::open(Path::new(&path)).map_err(|e| e.to_string())?;
+    let oid = git2::Oid::from_str(&hash).map_err(|e| e.to_string())?;
+    let commit = repo.find_commit(oid).map_err(|e| e.to_string())?;
+
+    let message = commit.message().unwrap_or("").to_string();
+    let author = commit.author().name().unwrap_or("Unknown").to_string();
+    let timestamp = commit.time().seconds();
+
+    let mut files = Vec::new();
+
+    let tree = commit.tree().map_err(|e| e.to_string())?;
+    
+    // Find parent tree
+    let parent_tree = if commit.parent_count() > 0 {
+        let parent = commit.parent(0).map_err(|e| e.to_string())?;
+        Some(parent.tree().map_err(|e| e.to_string())?)
+    } else {
+        None
+    };
+
+    let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None).map_err(|e| e.to_string())?;
+    
+    diff.print(git2::DiffFormat::NameStatus, |delta, _, _| {
+        let status = match delta.status() {
+            git2::Delta::Added => "Added",
+            git2::Delta::Deleted => "Deleted",
+            git2::Delta::Modified => "Modified",
+            git2::Delta::Renamed => "Renamed",
+            git2::Delta::Copied => "Copied",
+            _ => "Unknown",
+        }.to_string();
+
+        let path = delta.new_file().path().or_else(|| delta.old_file().path())
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default();
+            
+        files.push(FileDiff { path, status });
+        true
+    }).map_err(|e| e.to_string())?;
+
+    Ok(CommitDetails {
+        hash,
+        message,
+        author,
+        timestamp,
+        files,
     })
 }

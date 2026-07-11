@@ -33,9 +33,10 @@ interface CommitNode {
 
 export interface GitGraphProps {
   commits: CommitNode[];
+  onCommitClick?: (commitHash: string) => void;
 }
 
-export function GitGraph({ commits }: GitGraphProps) {
+export function GitGraph({ commits, onCommitClick }: GitGraphProps) {
   const { nodes, edges } = useMemo(() => {
     const flowNodes: Node[] = [];
     const flowEdges: Edge[] = [];
@@ -88,7 +89,16 @@ export function GitGraph({ commits }: GitGraphProps) {
 
   return (
     <div className="w-full h-full bg-background rounded-md border-none">
-      <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView={false} minZoom={1} maxZoom={1} defaultViewport={{ x: 0, y: 0, zoom: 1 }}>
+      <ReactFlow 
+        nodes={nodes} 
+        edges={edges} 
+        nodeTypes={nodeTypes} 
+        fitView={false} 
+        minZoom={1} 
+        maxZoom={1} 
+        defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+        onNodeClick={(_, node) => onCommitClick?.(node.id)}
+      >
         <Background gap={40} size={1} />
         <Controls />
       </ReactFlow>
