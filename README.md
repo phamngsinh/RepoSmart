@@ -85,3 +85,26 @@ This means:
 - ❌ You **CANNOT** sell the software or commercialize it (e.g., offering it as a paid service).
 
 See the [LICENSE](LICENSE) file for more details.
+
+---
+
+## 💖 Support & Donate
+
+If you find this project helpful and it saves your time, consider buying me a coffee or supporting the development!
+
+[![Sponsor](https://img.shields.io/badge/Sponsor-GitHub-ea4aaa?style=for-the-badge&logo=githubsponsors)](https://github.com/sponsors/phamngsinh)
+[![Open Collective](https://img.shields.io/badge/Open_Collective-reposmart-7FADF2?style=for-the-badge&logo=open-collective&logoColor=white)](https://opencollective.com/reposmart)
+
+Your support is greatly appreciated and helps keep the project open-source!
+
+### PayPal
+You can support the project via PayPal by sending to this email:  
+📧 **`phamngsinh39@gmail.com`**
+
+### Crypto Donation
+If you prefer crypto, you can send **USDT (TRC20)** to the address below:
+
+**Address:** `TPzdDfJ6n1ea3ix17dPhMigusfsk6KNL6C`  
+*(Network: Tron / TRC20)*
+
+<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=TPzdDfJ6n1ea3ix17dPhMigusfsk6KNL6C" width="150" alt="USDT TRC20 QR Code" />

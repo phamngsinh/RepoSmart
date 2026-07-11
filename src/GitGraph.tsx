@@ -64,7 +64,7 @@ export function GitGraph({ commits, onCommitClick }: GitGraphProps) {
       });
 
       // Add edges to parents
-      commit.parents.forEach((parentHash, parentIndex) => {
+      commit.parents.forEach((parentHash) => {
         flowEdges.push({
           id: `${commit.hash}-${parentHash}`,
           source: commit.hash,
