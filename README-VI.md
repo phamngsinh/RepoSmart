@@ -108,3 +108,11 @@ Nếu bạn muốn dùng tiền mã hóa (crypto), bạn có thể gửi **USDT 
 *(Mạng lưới: Tron / TRC20)*
 
 <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=TPzdDfJ6n1ea3ix17dPhMigusfsk6KNL6C" width="150" alt="USDT TRC20 QR Code" />
+
+---
+
+## 📞 Liên hệ & Yêu cầu tính năng
+
+Nếu bạn muốn đề xuất một tính năng mới (Submit Feature), yêu cầu một chức năng riêng biệt, hoặc đơn giản là muốn làm quen, đừng ngần ngại liên hệ trực tiếp với tôi qua:
+
+- **Telegram:** [@phamngsinh](https://t.me/phamngsinh)

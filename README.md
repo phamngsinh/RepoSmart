@@ -108,3 +108,11 @@ If you prefer crypto, you can send **USDT (TRC20)** to the address below:
 *(Network: Tron / TRC20)*
 
 <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=TPzdDfJ6n1ea3ix17dPhMigusfsk6KNL6C" width="150" alt="USDT TRC20 QR Code" />
+
+---
+
+## 📞 Contact & Feature Requests
+
+If you would like to submit a new feature request, propose a custom function, or just want to say hi, please feel free to contact me directly:
+
+- **Telegram:** [@phamngsinh](https://t.me/phamngsinh)
