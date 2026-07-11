@@ -1,4 +1,4 @@
-use git2::{BranchType, Delta, DiffFormat, Oid, Repository, StatusOptions, Status};
+use git2::{BranchType, Repository, StatusOptions, Status};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::Command;
@@ -503,3 +503,19 @@ pub fn git_commit(path: String, message: String) -> Result<String, String> {
     }
 }
 
+#[tauri::command]
+pub fn open_in_explorer(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    let res = std::process::Command::new("explorer").arg(&path).spawn();
+
+    #[cfg(target_os = "macos")]
+    let res = std::process::Command::new("open").arg(&path).spawn();
+
+    #[cfg(target_os = "linux")]
+    let res = std::process::Command::new("xdg-open").arg(&path).spawn();
+
+    match res {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("Failed to open folder: {}", e)),
+    }
+}

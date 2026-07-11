@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { FolderGit2, FolderOpen, Settings, ChevronDown, GitBranch, TerminalSquare, Search, DownloadCloud, FolderSearch, Moon, Sun } from 'lucide-react';
+import { FolderGit2, FolderOpen, Settings, ChevronDown, GitBranch, TerminalSquare, Search, DownloadCloud, FolderSearch, Moon, Sun, Cloud } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { GitGraph, GitGraphProps } from './GitGraph';
 import { AddRepoModal } from './AddRepoModal';
@@ -14,6 +14,7 @@ interface RepoInfo {
   path: string;
   current_branch: string | null;
   groupId?: string;
+  isBookmark?: boolean;
 }
 
 interface RemoteInfo {
@@ -257,32 +258,41 @@ function App() {
     setCommitDetails(null);
 
     // Fetch history if not cached
-    if (!histories[repo.path]) {
-      setIsLoading(true);
-      try {
-        const hist = await invoke<RepoHistory>('get_repo_history', { path: repo.path, branch: activeBranchId[repo.path] || null });
-        setHistories(prev => ({ ...prev, [repo.path]: hist }));
-      } catch (e) {
-        console.error(e);
-        alert('Error loading history: ' + e);
-      } finally {
-        setIsLoading(false);
+    if (!repo.isBookmark) {
+      if (!histories[repo.path]) {
+        setIsLoading(true);
+        try {
+          const hist = await invoke<RepoHistory>('get_repo_history', { path: repo.path, branch: activeBranchId[repo.path] || null });
+          setHistories(prev => ({ ...prev, [repo.path]: hist }));
+        } catch (e) {
+          console.error(e);
+          alert('Error loading history: ' + e);
+        } finally {
+          setIsLoading(false);
+        }
       }
-    }
-    
-    // Refresh remotes and status
-    try {
-      const rem = await invoke<RemoteInfo[]>('get_remotes', { path: repo.path });
-      setRemotes(rem);
-      const stat = await invoke<FileDiff[]>('get_repo_status', { path: repo.path });
-      setRepoStatus(stat);
-    } catch(e) {
-      console.error('Failed to load remotes/status', e);
+      
+      // Refresh remotes and status
+      try {
+        const rem = await invoke<RemoteInfo[]>('get_remotes', { path: repo.path });
+        setRemotes(rem);
+        const stat = await invoke<FileDiff[]>('get_repo_status', { path: repo.path });
+        setRepoStatus(stat);
+      } catch(e) {
+        console.error('Failed to load remotes/status', e);
+      }
+    } else {
+      // Clear for bookmarks
+      setRemotes([]);
+      setRepoStatus([]);
     }
   };
 
   const reloadActiveRepo = async () => {
     if (!activeTabId) return;
+    const repo = tabs.find(t => t.path === activeTabId);
+    if (!repo || repo.isBookmark) return;
+
     try {
       const hist = await invoke<RepoHistory>('get_repo_history', { path: activeTabId, branch: activeBranchId[activeTabId] || null });
       setHistories(prev => ({ ...prev, [activeTabId]: hist }));
@@ -506,7 +516,11 @@ function App() {
                               onClick={() => loadRepo(repo)}
                               className={`flex items-center w-full px-2 py-1 text-sm hover:bg-muted rounded-md text-left cursor-grab active:cursor-grabbing ${activeTabId === repo.path ? 'bg-muted/50' : ''}`}
                             >
-                              <GitBranch className={`w-4 h-4 mr-2 ${activeTabId === repo.path ? 'text-green-500' : 'text-gray-500'}`} />
+                              {repo.isBookmark ? (
+                                <Cloud className={`w-4 h-4 mr-2 ${activeTabId === repo.path ? 'text-blue-500' : 'text-gray-500'}`} />
+                              ) : (
+                                <GitBranch className={`w-4 h-4 mr-2 ${activeTabId === repo.path ? 'text-green-500' : 'text-gray-500'}`} />
+                              )}
                               <span className="flex-1 truncate">{repo.name}</span>
                             </button>
                           ))}
@@ -533,7 +547,11 @@ function App() {
                       onClick={() => loadRepo(repo)}
                       className={`flex items-center w-full px-2 py-1.5 text-sm hover:bg-muted rounded-md text-left cursor-grab active:cursor-grabbing ${activeTabId === repo.path ? 'bg-muted/50' : ''}`}
                     >
-                      <GitBranch className={`w-4 h-4 mr-2 ${activeTabId === repo.path ? 'text-green-500' : 'text-gray-500'}`} />
+                      {repo.isBookmark ? (
+                        <Cloud className={`w-4 h-4 mr-2 ${activeTabId === repo.path ? 'text-blue-500' : 'text-gray-500'}`} />
+                      ) : (
+                        <GitBranch className={`w-4 h-4 mr-2 ${activeTabId === repo.path ? 'text-green-500' : 'text-gray-500'}`} />
+                      )}
                       <span className="flex-1 truncate font-medium">{repo.name}</span>
                     </button>
                   ))}
@@ -738,11 +756,33 @@ function App() {
           {/* Main Workspace Area */}
           <div className="flex-1 flex overflow-hidden">
             <div className="flex-1 flex flex-col relative">
-              {isLoading && (
-                <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-50">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              {activeRepo?.isBookmark ? (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 bg-background">
+                  <Cloud className="w-16 h-16 text-muted-foreground mb-4 opacity-50" />
+                  <h2 className="text-2xl font-bold mb-2">Bookmarked Repository</h2>
+                  <p className="text-muted-foreground mb-6 text-center max-w-md">
+                    This repository is saved as a bookmark and has not been cloned to your local machine yet.
+                    <br/><br/>
+                    <code className="bg-muted px-2 py-1 rounded select-all">{activeRepo.path}</code>
+                  </p>
+                  <button 
+                    onClick={() => {
+                      setModalDefaultTab('clone');
+                      setIsAddModalOpen(true);
+                    }}
+                    className="px-6 py-2 bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-colors flex items-center shadow-sm"
+                  >
+                    <DownloadCloud className="w-5 h-5 mr-2" />
+                    Clone Repository Now
+                  </button>
                 </div>
-              )}
+              ) : (
+                <>
+                  {isLoading && (
+                    <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-50">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    </div>
+                  )}
               
               {activeMainTab === 'history' ? (
                 <>
@@ -828,6 +868,8 @@ function App() {
                     </div>
                   )}
                 </div>
+              )}
+                </>
               )}
             </div>
 
@@ -926,22 +968,99 @@ function App() {
           className="fixed z-50 bg-popover border border-border rounded-md shadow-md py-1 min-w-[160px] text-sm text-popover-foreground overflow-hidden"
           style={{ top: contextMenu.y, left: contextMenu.x }}
         >
-          <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase border-b border-border/50 mb-1">Move to Group</div>
-          {groups.map(g => (
-            <button 
-              key={g.id}
-              onClick={() => assignToGroup(g.id)}
-              className="w-full text-left px-3 py-1.5 hover:bg-muted transition-colors truncate"
-            >
-              {g.name}
-            </button>
-          ))}
-          <button 
-            onClick={() => assignToGroup(undefined)}
-            className="w-full text-left px-3 py-1.5 hover:bg-muted transition-colors text-muted-foreground italic border-t border-border/50 mt-1"
-          >
-            Ungrouped
-          </button>
+          {(() => {
+            const repo = repos.find(r => r.path === contextMenu.repoPath);
+            const isBookmark = repo?.isBookmark;
+            return (
+              <>
+                <button 
+                  onClick={async () => {
+                    if (isBookmark) return;
+                    try {
+                      await invoke('open_in_explorer', { path: contextMenu.repoPath });
+                    } catch (e) {
+                      console.error('Failed to open path', e);
+                    }
+                    setContextMenu(null);
+                  }}
+                  className={`w-full text-left px-3 py-1.5 hover:bg-muted transition-colors truncate flex items-center ${isBookmark ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  disabled={isBookmark}
+                >
+                  <FolderOpen className="w-4 h-4 mr-2" />
+                  Open Local
+                </button>
+                {isBookmark ? (
+                  <button 
+                    onClick={() => {
+                      loadRepo(repo!);
+                      setModalDefaultTab('clone');
+                      setIsAddModalOpen(true);
+                      setContextMenu(null);
+                    }}
+                    className="w-full text-left px-3 py-1.5 hover:bg-muted transition-colors truncate flex items-center"
+                  >
+                    <DownloadCloud className="w-4 h-4 mr-2" />
+                    Clone
+                  </button>
+                ) : (
+                  <>
+                    <button 
+                      onClick={() => {
+                        loadRepo(repo!);
+                        // Need timeout to allow tab to switch
+                        setTimeout(() => handlePull(), 100);
+                        setContextMenu(null);
+                      }}
+                      className="w-full text-left px-3 py-1.5 hover:bg-muted transition-colors truncate flex items-center"
+                    >
+                      <DownloadCloud className="w-4 h-4 mr-2" />
+                      Pull
+                    </button>
+                    <button 
+                      onClick={() => {
+                        loadRepo(repo!);
+                        setTimeout(() => handlePush(), 100);
+                        setContextMenu(null);
+                      }}
+                      className="w-full text-left px-3 py-1.5 hover:bg-muted transition-colors truncate flex items-center"
+                    >
+                      <FolderGit2 className="w-4 h-4 mr-2" />
+                      Push
+                    </button>
+                    <button 
+                      onClick={() => {
+                        loadRepo(repo!);
+                        setTimeout(() => setActiveMainTab('changes'), 100);
+                        setContextMenu(null);
+                      }}
+                      className="w-full text-left px-3 py-1.5 hover:bg-muted transition-colors truncate flex items-center"
+                    >
+                      <TerminalSquare className="w-4 h-4 mr-2" />
+                      Commit
+                    </button>
+                  </>
+                )}
+                
+                <div className="my-1 border-t border-border/50"></div>
+                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase mb-1">Move to Group</div>
+                {groups.map(g => (
+                  <button 
+                    key={g.id}
+                    onClick={() => assignToGroup(g.id)}
+                    className="w-full text-left px-3 py-1.5 hover:bg-muted transition-colors truncate"
+                  >
+                    {g.name}
+                  </button>
+                ))}
+                <button 
+                  onClick={() => assignToGroup(undefined)}
+                  className="w-full text-left px-3 py-1.5 hover:bg-muted transition-colors text-muted-foreground italic border-t border-border/50 mt-1"
+                >
+                  Ungrouped
+                </button>
+              </>
+            );
+          })()}
         </div>
       )}
     </div>

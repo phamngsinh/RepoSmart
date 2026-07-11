@@ -15,6 +15,7 @@ export function AddRepoModal({ isOpen, defaultTab = 'local', onClose, onSuccess 
   const [localPath, setLocalPath] = useState('');
   const [cloneUrl, setCloneUrl] = useState('');
   const [cloneDest, setCloneDest] = useState('');
+  const [isBookmark, setIsBookmark] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,13 +44,28 @@ export function AddRepoModal({ isOpen, defaultTab = 'local', onClose, onSuccess 
   };
 
   const handleClone = async () => {
-    if (!cloneUrl || !cloneDest) return;
+    if (!cloneUrl) return;
+    if (!isBookmark && !cloneDest) return;
     setIsLoading(true);
     setError(null);
     try {
-      const repo = await invoke('clone_repo', { url: cloneUrl, path: cloneDest });
-      onSuccess(repo);
-      onClose();
+      if (isBookmark) {
+        const parts = cloneUrl.split('/');
+        let name = parts[parts.length - 1];
+        if (name.endsWith('.git')) name = name.slice(0, -4);
+        
+        onSuccess({
+          name: name || 'Bookmarked Repo',
+          path: cloneUrl,
+          current_branch: null,
+          isBookmark: true
+        });
+        onClose();
+      } else {
+        const repo = await invoke('clone_repo', { url: cloneUrl, path: cloneDest });
+        onSuccess(repo);
+        onClose();
+      }
     } catch (err: any) {
       setError(err.toString());
     } finally {
@@ -159,31 +175,44 @@ export function AddRepoModal({ isOpen, defaultTab = 'local', onClose, onSuccess 
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Destination Directory</label>
-                <div className="flex space-x-2">
+                <label className="flex items-center space-x-2 text-sm text-foreground cursor-pointer mb-4 mt-2">
                   <input 
-                    type="text" 
-                    value={cloneDest}
-                    onChange={(e) => setCloneDest(e.target.value)}
-                    placeholder="e.g. C:\Projects\new-repo"
-                    className="flex-1 px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                    disabled={isLoading}
+                    type="checkbox" 
+                    checked={isBookmark}
+                    onChange={(e) => setIsBookmark(e.target.checked)}
+                    className="rounded border-input text-primary focus:ring-primary"
                   />
-                  <button 
-                    onClick={handleBrowseDest}
-                    disabled={isLoading}
-                    className="px-3 py-2 bg-muted hover:bg-muted/80 text-foreground border border-input rounded-md transition-colors"
-                  >
-                    <FolderSearch className="w-4 h-4" />
-                  </button>
-                </div>
+                  <span>Save as Bookmark (Do not clone yet)</span>
+                </label>
               </div>
+              {!isBookmark && (
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Destination Directory</label>
+                  <div className="flex space-x-2">
+                    <input 
+                      type="text" 
+                      value={cloneDest}
+                      onChange={(e) => setCloneDest(e.target.value)}
+                      placeholder="e.g. C:\Projects\new-repo"
+                      className="flex-1 px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                      disabled={isLoading}
+                    />
+                    <button 
+                      onClick={handleBrowseDest}
+                      disabled={isLoading}
+                      className="px-3 py-2 bg-muted hover:bg-muted/80 text-foreground border border-input rounded-md transition-colors"
+                    >
+                      <FolderSearch className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
               <button 
                 onClick={handleClone}
-                disabled={isLoading || !cloneUrl || !cloneDest}
+                disabled={isLoading || !cloneUrl || (!isBookmark && !cloneDest)}
                 className="w-full py-2 bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center"
               >
-                {isLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Cloning Repository...</> : 'Clone Repository'}
+                {isLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {isBookmark ? 'Saving...' : 'Cloning Repository...'}</> : (isBookmark ? 'Save Bookmark' : 'Clone Repository')}
               </button>
             </div>
           )}

@@ -18,7 +18,8 @@ pub fn run() {
             git_ops::get_remotes,
             git_ops::get_repo_status,
             git_ops::create_branch,
-            git_ops::git_commit
+            git_ops::git_commit,
+            git_ops::open_in_explorer
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
