@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { FolderGit2, FolderOpen, Settings, ChevronRight, ChevronDown, GitBranch, TerminalSquare, Search } from 'lucide-react';
+import { FolderGit2, FolderOpen, Settings, ChevronDown, GitBranch, TerminalSquare, Search } from 'lucide-react';
 import { GitGraph, GitGraphProps } from './GitGraph';
 import './App.css';
 

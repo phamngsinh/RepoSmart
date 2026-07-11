@@ -1,6 +1,27 @@
 import { useMemo } from 'react';
-import { ReactFlow, Controls, Background, Node, Edge, MarkerType } from '@xyflow/react';
+import { ReactFlow, Controls, Background, Node, Edge, MarkerType, Handle, Position } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+
+const CommitNodeComponent = ({ data }: any) => {
+  return (
+    <div className="relative group cursor-pointer hover:bg-muted/50 rounded-md transition-colors py-1 w-[1000px]">
+      <Handle type="target" position={Position.Top} style={{ left: 30, opacity: 0 }} />
+      <div className="grid grid-cols-[80px_1fr_150px_150px] gap-4 text-left items-center px-4">
+        <div className="font-mono text-xs font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+          {data.hash}
+        </div>
+        <div className="text-sm truncate font-medium text-foreground">{data.message}</div>
+        <div className="text-xs text-muted-foreground truncate">{data.author}</div>
+        <div className="text-xs text-muted-foreground">{data.date}</div>
+      </div>
+      <Handle type="source" position={Position.Bottom} style={{ left: 30, opacity: 0 }} />
+    </div>
+  );
+};
+
+const nodeTypes = {
+  commit: CommitNodeComponent,
+};
 
 interface CommitNode {
   hash: string;
@@ -21,33 +42,23 @@ export function GitGraph({ commits }: GitGraphProps) {
     
     // Very naive layout algorithm:
     // Every commit goes to y = index * 60
-    // Branches can be spread on x axis.
-    
-    const branchXMap = new Map<string, number>();
-    let maxBranchX = 0;
-
     commits.forEach((commit, index) => {
-      // Find x position
-      let xPos = 0;
       
       flowNodes.push({
         id: commit.hash,
-        position: { x: 50, y: index * 80 },
+        type: 'commit',
+        position: { x: 20, y: index * 40 },
         data: { 
-          label: (
-            <div className="text-left">
-              <div className="font-mono text-xs font-bold">{commit.hash.substring(0, 7)}</div>
-              <div className="text-xs truncate w-48">{commit.message}</div>
-              <div className="text-[10px] text-gray-500">{commit.author}</div>
-            </div>
-          ) 
+          hash: commit.hash.substring(0, 7),
+          message: commit.message,
+          author: commit.author,
+          date: new Date(commit.timestamp * 1000).toLocaleString()
         },
         style: {
-          background: '#fff',
-          border: '1px solid #ddd',
-          borderRadius: '4px',
-          padding: '8px',
-          width: 220,
+          width: 1000,
+          background: 'transparent',
+          border: 'none',
+          padding: 0,
         },
       });
 
@@ -57,13 +68,16 @@ export function GitGraph({ commits }: GitGraphProps) {
           id: `${commit.hash}-${parentHash}`,
           source: commit.hash,
           target: parentHash,
-          type: 'smoothstep',
+          type: 'straight',
           markerEnd: {
             type: MarkerType.ArrowClosed,
+            width: 15,
+            height: 15,
+            color: '#3b82f6'
           },
           style: {
-            strokeWidth: 2,
-            stroke: parentIndex === 0 ? '#3b82f6' : '#ef4444',
+            strokeWidth: 3,
+            stroke: '#3b82f6',
           }
         });
       });
@@ -73,9 +87,9 @@ export function GitGraph({ commits }: GitGraphProps) {
   }, [commits]);
 
   return (
-    <div className="w-full h-full bg-white dark:bg-gray-900 rounded-md border border-gray-200 dark:border-gray-800">
-      <ReactFlow nodes={nodes} edges={edges} fitView>
-        <Background />
+    <div className="w-full h-full bg-background rounded-md border-none">
+      <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView={false} minZoom={1} maxZoom={1} defaultViewport={{ x: 0, y: 0, zoom: 1 }}>
+        <Background gap={40} size={1} />
         <Controls />
       </ReactFlow>
     </div>
